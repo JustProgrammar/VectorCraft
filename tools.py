@@ -7,6 +7,44 @@ class ToolMode(Enum):
     DIRECT_SELECT = "direct_select"
     FREEFORM = "freeform"
 
+class DirectSelectTool:
+    SELECTION_THRESHOLD = 8
+
+    @staticmethod
+    def find_closest_point(pos, path, threshold):
+        """Find the closest point or handle within threshold distance."""
+        min_dist = float('inf')
+        closest = None
+        is_handle = False
+        is_in_handle = False
+
+        for point in path.points:
+            # Check anchor point
+            dist = distance(np.array(pos), point.position)
+            if dist < min_dist and dist < threshold:
+                min_dist = dist
+                closest = point
+                is_handle = False
+
+            # Check handles
+            if point.handle_in is not None:
+                dist = distance(np.array(pos), point.handle_in)
+                if dist < min_dist and dist < threshold:
+                    min_dist = dist
+                    closest = point
+                    is_handle = True
+                    is_in_handle = True
+
+            if point.handle_out is not None:
+                dist = distance(np.array(pos), point.handle_out)
+                if dist < min_dist and dist < threshold:
+                    min_dist = dist
+                    closest = point
+                    is_handle = True
+                    is_in_handle = False
+
+        return closest, is_handle, is_in_handle
+
 class ToolState:
     def __init__(self):
         self.current_mode = ToolMode.PEN
@@ -15,17 +53,21 @@ class ToolState:
         self.selected_handle = None
         self.hover_point = None
         self.hover_handle = None
-        
+        self.is_handle_in = False
+        self.last_pos = None
+
     def set_mode(self, mode):
         self.current_mode = mode
         self.reset_state()
-        
+
     def reset_state(self):
         self.is_drawing = False
         self.selected_point = None
         self.selected_handle = None
         self.hover_point = None
         self.hover_handle = None
+        self.is_handle_in = False
+        self.last_pos = None
 
 class PenTool:
     HANDLE_LENGTH = 50
@@ -47,7 +89,7 @@ class PenTool:
         ) * PenTool.HANDLE_LENGTH
         
         path.add_point(pos, handle_in=handle_in)
-
+    
     @staticmethod
     def adjust_handle(point, handle_pos, is_in_handle):
         if is_in_handle:
