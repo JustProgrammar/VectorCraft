@@ -10,18 +10,29 @@ def calculate_bezier_point(t, p0, p1, p2, p3):
         t**3 * p3
     )
 
-def generate_svg_path(points):
+def generate_svg_path(points, canvas_height=600):
     """Generate SVG path command from control points."""
     if len(points) < 2:
         return ""
-    
-    path = f"M {points[0][0]:.1f},{points[0][1]:.1f} "
-    
+
+    # Transform function to flip y coordinates
+    def transform_point(point):
+        return (point[0], canvas_height - point[1])
+
+    # Transform the first point
+    first_point = transform_point(points[0])
+    path = f"M {first_point[0]:.1f},{first_point[1]:.1f} "
+
     for i in range(1, len(points)-2, 3):
-        path += (f"C {points[i][0]:.1f},{points[i][1]:.1f} "
-                f"{points[i+1][0]:.1f},{points[i+1][1]:.1f} "
-                f"{points[i+2][0]:.1f},{points[i+2][1]:.1f} ")
-    
+        # Transform control points and end point
+        c1 = transform_point(points[i])
+        c2 = transform_point(points[i+1])
+        end = transform_point(points[i+2])
+
+        path += (f"C {c1[0]:.1f},{c1[1]:.1f} "
+                f"{c2[0]:.1f},{c2[1]:.1f} "
+                f"{end[0]:.1f},{end[1]:.1f} ")
+
     return path
 
 def distance(p1, p2):
