@@ -85,6 +85,23 @@ class MainWindow(QMainWindow):
         )
         toolbar.addWidget(freeform_button)
 
+        # Add snap point tool button
+        add_snap_button = QToolButton()
+        add_snap_button.setText("Add Snap")
+        add_snap_button.setCheckable(True)
+        add_snap_button.clicked.connect(
+            lambda: self.set_tool_mode(ToolMode.ADD_SNAP_POINT)
+        )
+        toolbar.addWidget(add_snap_button)
+
+        # Toggle snap radius visibility button
+        toggle_snap_radius_button = QToolButton()
+        toggle_snap_radius_button.setText("Show Radius")
+        toggle_snap_radius_button.setCheckable(True)
+        toggle_snap_radius_button.setChecked(True)
+        toggle_snap_radius_button.clicked.connect(self.toggle_snap_radius)
+        toolbar.addWidget(toggle_snap_radius_button)
+
         # Close path button
         close_path_button = QToolButton()
         close_path_button.setText("Close")
@@ -111,6 +128,10 @@ class MainWindow(QMainWindow):
         svg_content = self.path_manager.export_svg()
         dialog = SVGDialog(svg_content, self)
         dialog.exec()
+
+    def toggle_snap_radius(self):
+        self.tool_state.toggle_snap_radius_visibility()
+        self.canvas.update()
 
 def main():
     app = QApplication(sys.argv)
