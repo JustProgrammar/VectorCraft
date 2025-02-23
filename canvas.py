@@ -44,7 +44,6 @@ class DirectSelectTool:
 def distance(p1, p2):
     return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
-
 class Canvas(QWidget):
     def __init__(self, path_manager, tool_state):
         super().__init__()
@@ -68,6 +67,10 @@ class Canvas(QWidget):
         # Draw grid
         self.draw_grid(painter)
 
+        # Draw snap points and their radii
+        if self.tool_state.show_snap_radius:
+            self.draw_snap_points(painter)
+
         # Draw paths
         for path in self.path_manager.paths:
             self.draw_path(painter, path)
@@ -77,6 +80,21 @@ class Canvas(QWidget):
             self.draw_control_points(painter)
 
         painter.end()
+
+    def draw_snap_points(self, painter):
+        for snap_point in self.tool_state.snap_points:
+            # Draw snap point
+            painter.setPen(QPen(QColor(Colors.ACCENT), 2))
+            painter.drawEllipse(QPointF(*snap_point.position), 4, 4)
+
+            # Draw snap radius
+            if self.tool_state.show_snap_radius:
+                painter.setPen(QPen(QColor(Colors.SECONDARY), 1, Qt.PenStyle.DashLine))
+                painter.drawEllipse(
+                    QPointF(*snap_point.position),
+                    snap_point.radius,
+                    snap_point.radius
+                )
 
     def draw_grid(self, painter):
         painter.setPen(QPen(QColor(Colors.GRID), 1))
@@ -146,31 +164,34 @@ class Canvas(QWidget):
 
     def mousePressEvent(self, event):
         pos = self.transform_pos(event.position())
+        current_pos = np.array([pos.x(), pos.y()])
 
-        if self.tool_state.current_mode == ToolMode.PEN:
+        if self.tool_state.current_mode == ToolMode.ADD_SNAP_POINT:
+            self.tool_state.add_snap_point(current_pos)
+        elif self.tool_state.current_mode == ToolMode.PEN:
             if not self.path_manager.current_path:
                 self.path_manager.start_new_path()
             self.tool_state.is_drawing = True
-            self.path_manager.current_path.add_point([pos.x(), pos.y()])
-
+            snapped_pos = self.tool_state.get_snap_position(current_pos)
+            self.path_manager.current_path.add_point(snapped_pos)
         elif self.tool_state.current_mode == ToolMode.DIRECT_SELECT:
             if self.path_manager.current_path:
                 point, is_handle, is_in_handle = DirectSelectTool.find_closest_point(
-                    [pos.x(), pos.y()],
+                    current_pos,
                     self.path_manager.current_path,
                     DirectSelectTool.SELECTION_THRESHOLD / self.zoom
                 )
                 self.tool_state.selected_point = point
                 self.tool_state.selected_handle = is_handle
                 self.tool_state.is_handle_in = is_in_handle
-                self.tool_state.last_pos = np.array([pos.x(), pos.y()])
-
+                self.tool_state.last_pos = current_pos
         elif self.tool_state.current_mode == ToolMode.FREEFORM:
             if not self.path_manager.current_path:
                 self.path_manager.start_new_path()
             self.tool_state.is_drawing = True
-            self.last_freeform_pos = np.array([pos.x(), pos.y()])
-            self.path_manager.current_path.add_point([pos.x(), pos.y()])
+            self.last_freeform_pos = current_pos
+            snapped_pos = self.tool_state.get_snap_position(current_pos)
+            self.path_manager.current_path.add_point(snapped_pos)
 
         self.update()
 
@@ -204,19 +225,21 @@ class Canvas(QWidget):
                             )
                 else:
                     # Moving the anchor point
-                    delta = current_pos - self.tool_state.last_pos
+                    snapped_pos = self.tool_state.get_snap_position(current_pos)
+                    delta = snapped_pos - self.tool_state.last_pos
                     self.tool_state.selected_point.position += delta
                     if self.tool_state.selected_point.handle_in is not None:
                         self.tool_state.selected_point.handle_in += delta
                     if self.tool_state.selected_point.handle_out is not None:
                         self.tool_state.selected_point.handle_out += delta
-                    self.tool_state.last_pos = current_pos
+                    self.tool_state.last_pos = snapped_pos
 
         elif self.tool_state.current_mode == ToolMode.FREEFORM and self.tool_state.is_drawing:
             if self.last_freeform_pos is not None:
                 dist = distance(current_pos, self.last_freeform_pos)
                 if dist >= self.freeform_distance_threshold:
-                    self.path_manager.current_path.add_point([pos.x(), pos.y()])
+                    snapped_pos = self.tool_state.get_snap_position(current_pos)
+                    self.path_manager.current_path.add_point(snapped_pos)
                     self.last_freeform_pos = current_pos
 
         self.update()

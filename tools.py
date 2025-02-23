@@ -6,6 +6,18 @@ class ToolMode(Enum):
     PEN = "pen"
     DIRECT_SELECT = "direct_select"
     FREEFORM = "freeform"
+    ADD_SNAP_POINT = "add_snap_point"
+
+class SnapPoint:
+    def __init__(self, position, radius=20):
+        self.position = np.array(position)
+        self.radius = radius
+
+    def should_snap(self, point_pos):
+        return distance(self.position, np.array(point_pos)) <= self.radius
+
+    def get_snap_position(self):
+        return self.position.copy()
 
 class DirectSelectTool:
     SELECTION_THRESHOLD = 8
@@ -55,6 +67,8 @@ class ToolState:
         self.hover_handle = None
         self.is_handle_in = False
         self.last_pos = None
+        self.show_snap_radius = True
+        self.snap_points = []
 
     def set_mode(self, mode):
         self.current_mode = mode
@@ -69,27 +83,39 @@ class ToolState:
         self.is_handle_in = False
         self.last_pos = None
 
+    def add_snap_point(self, position):
+        self.snap_points.append(SnapPoint(position))
+
+    def toggle_snap_radius_visibility(self):
+        self.show_snap_radius = not self.show_snap_radius
+
+    def get_snap_position(self, position):
+        for snap_point in self.snap_points:
+            if snap_point.should_snap(position):
+                return snap_point.get_snap_position()
+        return np.array(position)
+
 class PenTool:
     HANDLE_LENGTH = 50
-    
+
     @staticmethod
     def create_point(pos, path):
         if not path.points:
             path.add_point(pos)
             return
-            
+
         last_point = path.points[-1]
         handle_out = last_point.position + normalize_vector(
             np.array(pos) - last_point.position
         ) * PenTool.HANDLE_LENGTH
-        
+
         last_point.handle_out = handle_out
         handle_in = np.array(pos) - normalize_vector(
             np.array(pos) - last_point.position
         ) * PenTool.HANDLE_LENGTH
-        
+
         path.add_point(pos, handle_in=handle_in)
-    
+
     @staticmethod
     def adjust_handle(point, handle_pos, is_in_handle):
         if is_in_handle:
