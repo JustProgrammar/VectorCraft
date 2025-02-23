@@ -47,8 +47,8 @@ class Path:
 
         return bezier_points
 
-    def to_svg(self):
-        path_data = generate_svg_path(self.get_bezier_points())
+    def to_svg(self, canvas_height=600):
+        path_data = generate_svg_path(self.get_bezier_points(), canvas_height)
         return f'<path d="{path_data}" stroke="{self.stroke_color}" stroke-width="{self.stroke_width}" fill="{self.fill}"/>'
 
 class PathManager:
@@ -63,10 +63,10 @@ class PathManager:
     def get_current_path(self):
         return self.current_path
 
-    def export_svg(self):
+    def export_svg(self, canvas_height=600):
         svg_paths = []
         for path in self.paths:
-            svg_paths.append(path.to_svg())
+            svg_paths.append(path.to_svg(canvas_height))
 
         svg_content = (
             '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">\n'
