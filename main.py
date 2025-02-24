@@ -1,13 +1,14 @@
 import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QToolBar,
                           QToolButton, QVBoxLayout, QWidget, QDialog,
-                          QTextEdit, QPushButton)
+                          QTextEdit, QPushButton, QLabel, QPlainTextEdit)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from canvas import Canvas
 from path_manager import PathManager
 from tools import ToolState, ToolMode
 from styles import StyleSheet
+from utils import PathParser
 
 class SVGDialog(QDialog):
     def __init__(self, svg_content, parent=None):
@@ -27,6 +28,38 @@ class SVGDialog(QDialog):
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.accept)
         layout.addWidget(close_button)
+
+class GlyphDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Import Glyph Path")
+        self.setMinimumSize(400, 300)
+
+        layout = QVBoxLayout(self)
+
+        # Instructions
+        instructions = QLabel(
+            "Enter glyph path commands (e.g., M100,100 C150,100 200,150 200,200)"
+        )
+        layout.addWidget(instructions)
+
+        # Text area for path commands
+        self.path_edit = QPlainTextEdit()
+        layout.addWidget(self.path_edit)
+
+        # Buttons
+        button_layout = QVBoxLayout()
+        import_button = QPushButton("Import")
+        import_button.clicked.connect(self.accept)
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(self.reject)
+
+        button_layout.addWidget(import_button)
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+
+    def get_path_data(self):
+        return self.path_edit.toPlainText()
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -108,6 +141,12 @@ class MainWindow(QMainWindow):
         close_path_button.clicked.connect(self.close_current_path)
         toolbar.addWidget(close_path_button)
 
+        # Import glyph button
+        import_glyph_button = QToolButton()
+        import_glyph_button.setText("Import Glyph")
+        import_glyph_button.clicked.connect(self.import_glyph)
+        toolbar.addWidget(import_glyph_button)
+
         # Export SVG button
         export_svg_button = QToolButton()
         export_svg_button.setText("Export SVG")
@@ -132,6 +171,21 @@ class MainWindow(QMainWindow):
     def toggle_snap_radius(self):
         self.tool_state.toggle_snap_radius_visibility()
         self.canvas.update()
+
+    def import_glyph(self):
+        dialog = GlyphDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            path_data = dialog.get_path_data()
+            parser = PathParser()
+            points = parser.parse_path(path_data)
+
+            if points:
+                self.path_manager.start_new_path()
+                for point, handle_in, handle_out in points:
+                    self.path_manager.current_path.add_point(
+                        point, handle_in=handle_in, handle_out=handle_out
+                    )
+                self.canvas.update()
 
 def main():
     app = QApplication(sys.argv)
