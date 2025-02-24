@@ -1,7 +1,7 @@
 import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QToolBar,
                           QToolButton, QVBoxLayout, QWidget, QDialog,
-                          QTextEdit, QPushButton, QLabel, QHBoxLayout)
+                          QTextEdit, QPushButton)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from canvas import Canvas
@@ -41,29 +41,15 @@ class MainWindow(QMainWindow):
         # Create main widget and layout
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
-        main_layout = QVBoxLayout(main_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        layout = QVBoxLayout(main_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         # Create toolbar
         self.create_toolbar()
 
-        # Create coordinate display panel
-        coord_panel = QWidget()
-        coord_layout = QHBoxLayout(coord_panel)
-        coord_layout.setContentsMargins(5, 5, 5, 5)
-
-        self.coord_label = QLabel("Point: ")
-        self.coord_display = QLabel("No point selected")
-        self.coord_display.setStyleSheet("background-color: #f0f0f0; padding: 5px; border-radius: 3px;")
-        coord_layout.addWidget(self.coord_label)
-        coord_layout.addWidget(self.coord_display)
-        coord_layout.addStretch()
-
-        main_layout.addWidget(coord_panel)
-
         # Create canvas
-        self.canvas = Canvas(self.path_manager, self.tool_state, self)
-        main_layout.addWidget(self.canvas)
+        self.canvas = Canvas(self.path_manager, self.tool_state)
+        layout.addWidget(self.canvas)
 
         # Set window properties
         self.setMinimumSize(800, 600)
@@ -146,13 +132,6 @@ class MainWindow(QMainWindow):
     def toggle_snap_radius(self):
         self.tool_state.toggle_snap_radius_visibility()
         self.canvas.update()
-
-    def update_coordinate_display(self, point_type, coordinates):
-        if coordinates is None:
-            self.coord_display.setText("No point selected")
-        else:
-            x, y = coordinates
-            self.coord_display.setText(f"{point_type}: ({x:.1f}, {y:.1f})")
 
 def main():
     app = QApplication(sys.argv)
