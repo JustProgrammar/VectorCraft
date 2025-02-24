@@ -141,30 +141,40 @@ class Canvas(QWidget):
 
     def draw_control_points(self, painter):
         for point in self.path_manager.current_path.points:
-            # Draw anchor point
+            # Draw anchor point in accent color
             painter.setPen(QPen(QColor(Colors.ACCENT), 2))
+            painter.setBrush(QColor(Colors.ACCENT))
             painter.drawEllipse(QPointF(*point.position), 4, 4)
 
-            # Draw handles
+            # Draw handles in active color with secondary lines
             if point.handle_in is not None:
+                # Draw handle line
                 painter.setPen(QPen(QColor(Colors.SECONDARY), 1))
                 painter.drawLine(
                     QPointF(*point.position),
                     QPointF(*point.handle_in)
                 )
+                # Draw handle point
+                painter.setPen(QPen(QColor(Colors.ACTIVE), 2))
+                painter.setBrush(QColor(Colors.ACTIVE))
                 painter.drawEllipse(QPointF(*point.handle_in), 3, 3)
 
             if point.handle_out is not None:
+                # Draw handle line
                 painter.setPen(QPen(QColor(Colors.SECONDARY), 1))
                 painter.drawLine(
                     QPointF(*point.position),
                     QPointF(*point.handle_out)
                 )
+                # Draw handle point
+                painter.setPen(QPen(QColor(Colors.ACTIVE), 2))
+                painter.setBrush(QColor(Colors.ACTIVE))
                 painter.drawEllipse(QPointF(*point.handle_out), 3, 3)
 
     def mousePressEvent(self, event):
         pos = self.transform_pos(event.position())
         current_pos = np.array([pos.x(), pos.y()])
+        snapped_pos = self.tool_state.get_snap_position(current_pos)
 
         if self.tool_state.current_mode == ToolMode.ADD_SNAP_POINT:
             self.tool_state.add_snap_point(current_pos)
@@ -172,7 +182,6 @@ class Canvas(QWidget):
             if not self.path_manager.current_path:
                 self.path_manager.start_new_path()
             self.tool_state.is_drawing = True
-            snapped_pos = self.tool_state.get_snap_position(current_pos)
             self.path_manager.current_path.add_point(snapped_pos)
         elif self.tool_state.current_mode == ToolMode.DIRECT_SELECT:
             if self.path_manager.current_path:
@@ -184,13 +193,12 @@ class Canvas(QWidget):
                 self.tool_state.selected_point = point
                 self.tool_state.selected_handle = is_handle
                 self.tool_state.is_handle_in = is_in_handle
-                self.tool_state.last_pos = current_pos
+                self.tool_state.last_pos = snapped_pos
         elif self.tool_state.current_mode == ToolMode.FREEFORM:
             if not self.path_manager.current_path:
                 self.path_manager.start_new_path()
             self.tool_state.is_drawing = True
             self.last_freeform_pos = current_pos
-            snapped_pos = self.tool_state.get_snap_position(current_pos)
             self.path_manager.current_path.add_point(snapped_pos)
 
         self.update()
@@ -198,34 +206,35 @@ class Canvas(QWidget):
     def mouseMoveEvent(self, event):
         pos = self.transform_pos(event.position())
         current_pos = np.array([pos.x(), pos.y()])
+        snapped_pos = self.tool_state.get_snap_position(current_pos)
 
         if self.tool_state.current_mode == ToolMode.PEN and self.tool_state.is_drawing:
             current_path = self.path_manager.current_path
             if current_path and current_path.points:
                 last_point = current_path.points[-1]
-                last_point.handle_out = current_pos
+                # Use snapped position for handle
+                last_point.handle_out = snapped_pos
 
         elif self.tool_state.current_mode == ToolMode.DIRECT_SELECT:
             if self.tool_state.selected_point:
                 if self.tool_state.selected_handle:
-                    # Moving a handle
+                    # Moving a handle - use snapped position
                     if self.tool_state.is_handle_in:
-                        self.tool_state.selected_point.handle_in = current_pos
+                        self.tool_state.selected_point.handle_in = snapped_pos
                         if self.tool_state.selected_point.is_smooth:
-                            diff = self.tool_state.selected_point.position - current_pos
+                            diff = self.tool_state.selected_point.position - snapped_pos
                             self.tool_state.selected_point.handle_out = (
                                 self.tool_state.selected_point.position + diff
                             )
                     else:
-                        self.tool_state.selected_point.handle_out = current_pos
+                        self.tool_state.selected_point.handle_out = snapped_pos
                         if self.tool_state.selected_point.is_smooth:
-                            diff = self.tool_state.selected_point.position - current_pos
+                            diff = self.tool_state.selected_point.position - snapped_pos
                             self.tool_state.selected_point.handle_in = (
                                 self.tool_state.selected_point.position + diff
                             )
                 else:
                     # Moving the anchor point
-                    snapped_pos = self.tool_state.get_snap_position(current_pos)
                     delta = snapped_pos - self.tool_state.last_pos
                     self.tool_state.selected_point.position += delta
                     if self.tool_state.selected_point.handle_in is not None:
@@ -238,7 +247,6 @@ class Canvas(QWidget):
             if self.last_freeform_pos is not None:
                 dist = distance(current_pos, self.last_freeform_pos)
                 if dist >= self.freeform_distance_threshold:
-                    snapped_pos = self.tool_state.get_snap_position(current_pos)
                     self.path_manager.current_path.add_point(snapped_pos)
                     self.last_freeform_pos = current_pos
 
