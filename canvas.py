@@ -45,10 +45,11 @@ def distance(p1, p2):
     return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
 class Canvas(QWidget):
-    def __init__(self, path_manager, tool_state):
+    def __init__(self, path_manager, tool_state, main_window):
         super().__init__()
         self.path_manager = path_manager
         self.tool_state = tool_state
+        self.main_window = main_window
         self.zoom = 1.0
         self.offset = QPointF(0, 0)
         self.grid_size = 20
@@ -178,11 +179,13 @@ class Canvas(QWidget):
 
         if self.tool_state.current_mode == ToolMode.ADD_SNAP_POINT:
             self.tool_state.add_snap_point(current_pos)
+            self.main_window.update_coordinate_display("Snap Point", current_pos)
         elif self.tool_state.current_mode == ToolMode.PEN:
             if not self.path_manager.current_path:
                 self.path_manager.start_new_path()
             self.tool_state.is_drawing = True
             self.path_manager.current_path.add_point(snapped_pos)
+            self.main_window.update_coordinate_display("Anchor Point", snapped_pos)
         elif self.tool_state.current_mode == ToolMode.DIRECT_SELECT:
             if self.path_manager.current_path:
                 point, is_handle, is_in_handle = DirectSelectTool.find_closest_point(
@@ -194,12 +197,18 @@ class Canvas(QWidget):
                 self.tool_state.selected_handle = is_handle
                 self.tool_state.is_handle_in = is_in_handle
                 self.tool_state.last_pos = snapped_pos
+
+                if point:
+                    point_type = "Handle In" if is_handle and is_in_handle else "Handle Out" if is_handle else "Anchor Point"
+                    coord = point.handle_in if is_handle and is_in_handle else point.handle_out if is_handle else point.position
+                    self.main_window.update_coordinate_display(point_type, coord)
         elif self.tool_state.current_mode == ToolMode.FREEFORM:
             if not self.path_manager.current_path:
                 self.path_manager.start_new_path()
             self.tool_state.is_drawing = True
             self.last_freeform_pos = current_pos
             self.path_manager.current_path.add_point(snapped_pos)
+            self.main_window.update_coordinate_display("Freeform Point", snapped_pos)
 
         self.update()
 
@@ -212,15 +221,15 @@ class Canvas(QWidget):
             current_path = self.path_manager.current_path
             if current_path and current_path.points:
                 last_point = current_path.points[-1]
-                # Use snapped position for handle
                 last_point.handle_out = snapped_pos
+                self.main_window.update_coordinate_display("Handle Out", snapped_pos)
 
         elif self.tool_state.current_mode == ToolMode.DIRECT_SELECT:
             if self.tool_state.selected_point:
                 if self.tool_state.selected_handle:
-                    # Moving a handle - use snapped position
                     if self.tool_state.is_handle_in:
                         self.tool_state.selected_point.handle_in = snapped_pos
+                        self.main_window.update_coordinate_display("Handle In", snapped_pos)
                         if self.tool_state.selected_point.is_smooth:
                             diff = self.tool_state.selected_point.position - snapped_pos
                             self.tool_state.selected_point.handle_out = (
@@ -228,15 +237,16 @@ class Canvas(QWidget):
                             )
                     else:
                         self.tool_state.selected_point.handle_out = snapped_pos
+                        self.main_window.update_coordinate_display("Handle Out", snapped_pos)
                         if self.tool_state.selected_point.is_smooth:
                             diff = self.tool_state.selected_point.position - snapped_pos
                             self.tool_state.selected_point.handle_in = (
                                 self.tool_state.selected_point.position + diff
                             )
                 else:
-                    # Moving the anchor point
                     delta = snapped_pos - self.tool_state.last_pos
                     self.tool_state.selected_point.position += delta
+                    self.main_window.update_coordinate_display("Anchor Point", self.tool_state.selected_point.position)
                     if self.tool_state.selected_point.handle_in is not None:
                         self.tool_state.selected_point.handle_in += delta
                     if self.tool_state.selected_point.handle_out is not None:
@@ -248,6 +258,7 @@ class Canvas(QWidget):
                 dist = distance(current_pos, self.last_freeform_pos)
                 if dist >= self.freeform_distance_threshold:
                     self.path_manager.current_path.add_point(snapped_pos)
+                    self.main_window.update_coordinate_display("Freeform Point", snapped_pos)
                     self.last_freeform_pos = current_pos
 
         self.update()
@@ -256,8 +267,10 @@ class Canvas(QWidget):
         if self.tool_state.current_mode == ToolMode.FREEFORM:
             self.last_freeform_pos = None
         self.tool_state.is_drawing = False
-        self.tool_state.selected_point = None
-        self.tool_state.selected_handle = None
+        if not self.tool_state.current_mode == ToolMode.DIRECT_SELECT:
+            self.tool_state.selected_point = None
+            self.tool_state.selected_handle = None
+            self.main_window.update_coordinate_display(None, None)
         self.update()
 
     def wheelEvent(self, event):
