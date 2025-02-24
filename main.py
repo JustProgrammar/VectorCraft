@@ -1,69 +1,32 @@
 import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QToolBar,
                           QToolButton, QVBoxLayout, QWidget, QDialog,
-                          QTextEdit, QPushButton, QHBoxLayout, QLabel,
-                          QLineEdit, QGroupBox, QGridLayout)
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QDoubleValidator
+                          QTextEdit, QPushButton)
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 from canvas import Canvas
 from path_manager import PathManager
 from tools import ToolState, ToolMode
 from styles import StyleSheet
 
-class CoordinatePanel(QWidget):
-    coordinatesChanged = pyqtSignal(float, float)
-
-    def __init__(self, parent=None):
+class SVGDialog(QDialog):
+    def __init__(self, svg_content, parent=None):
         super().__init__(parent)
-        self.initUI()
+        self.setWindowTitle("SVG Path Commands")
+        self.setMinimumSize(400, 300)
 
-    def initUI(self):
         layout = QVBoxLayout(self)
 
-        # Group box for coordinates
-        coord_group = QGroupBox("Point Coordinates")
-        coord_layout = QGridLayout()
+        # Text area for SVG content
+        self.text_edit = QTextEdit()
+        self.text_edit.setPlainText(svg_content)
+        self.text_edit.setReadOnly(True)
+        layout.addWidget(self.text_edit)
 
-        # X coordinate
-        self.x_label = QLabel("X:")
-        self.x_input = QLineEdit()
-        self.x_input.setValidator(QDoubleValidator())
-
-        # Y coordinate
-        self.y_label = QLabel("Y:")
-        self.y_input = QLineEdit()
-        self.y_input.setValidator(QDoubleValidator())
-
-        # Apply button
-        self.apply_button = QPushButton("Apply")
-        self.apply_button.clicked.connect(self.applyCoordinates)
-
-        # Add widgets to layout
-        coord_layout.addWidget(self.x_label, 0, 0)
-        coord_layout.addWidget(self.x_input, 0, 1)
-        coord_layout.addWidget(self.y_label, 1, 0)
-        coord_layout.addWidget(self.y_input, 1, 1)
-        coord_layout.addWidget(self.apply_button, 2, 0, 1, 2)
-
-        coord_group.setLayout(coord_layout)
-        layout.addWidget(coord_group)
-        layout.addStretch()
-
-        self.setMaximumWidth(200)
-        self.setEnabled(False)
-
-    def updateCoordinates(self, x, y):
-        self.x_input.setText(f"{x:.2f}")
-        self.y_input.setText(f"{y:.2f}")
-        self.setEnabled(True)
-
-    def applyCoordinates(self):
-        try:
-            x = float(self.x_input.text())
-            y = float(self.y_input.text())
-            self.coordinatesChanged.emit(x, y)
-        except ValueError:
-            pass
+        # Close button
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.accept)
+        layout.addWidget(close_button)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -78,34 +41,18 @@ class MainWindow(QMainWindow):
         # Create main widget and layout
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
-        layout = QHBoxLayout(main_widget)  # Changed to QHBoxLayout
+        layout = QVBoxLayout(main_widget)
         layout.setContentsMargins(0, 0, 0, 0)
-
-        # Create left panel for canvas
-        canvas_container = QWidget()
-        canvas_layout = QVBoxLayout(canvas_container)
-        canvas_layout.setContentsMargins(0, 0, 0, 0)
 
         # Create toolbar
         self.create_toolbar()
 
         # Create canvas
         self.canvas = Canvas(self.path_manager, self.tool_state)
-        canvas_layout.addWidget(self.canvas)
-
-        # Create coordinate panel
-        self.coordinate_panel = CoordinatePanel()
-        self.coordinate_panel.coordinatesChanged.connect(self.updateSelectedPointCoordinates)
-
-        # Add canvas and coordinate panel to main layout
-        layout.addWidget(canvas_container)
-        layout.addWidget(self.coordinate_panel)
+        layout.addWidget(self.canvas)
 
         # Set window properties
-        self.setMinimumSize(1000, 600)  # Increased width to accommodate panel
-
-        # Connect canvas signals
-        self.canvas.pointSelected.connect(self.onPointSelected)
+        self.setMinimumSize(800, 600)
 
     def create_toolbar(self):
         toolbar = QToolBar()
@@ -167,12 +114,6 @@ class MainWindow(QMainWindow):
         export_svg_button.clicked.connect(self.show_svg_export)
         toolbar.addWidget(export_svg_button)
 
-    def onPointSelected(self, x, y):
-        self.coordinate_panel.updateCoordinates(x, y)
-
-    def updateSelectedPointCoordinates(self, x, y):
-        self.canvas.updateSelectedPointPosition(x, y)
-
     def set_tool_mode(self, mode):
         self.tool_state.set_mode(mode)
         self.canvas.update()
@@ -191,25 +132,6 @@ class MainWindow(QMainWindow):
     def toggle_snap_radius(self):
         self.tool_state.toggle_snap_radius_visibility()
         self.canvas.update()
-
-class SVGDialog(QDialog):
-    def __init__(self, svg_content, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("SVG Path Commands")
-        self.setMinimumSize(400, 300)
-
-        layout = QVBoxLayout(self)
-
-        # Text area for SVG content
-        self.text_edit = QTextEdit()
-        self.text_edit.setPlainText(svg_content)
-        self.text_edit.setReadOnly(True)
-        layout.addWidget(self.text_edit)
-
-        # Close button
-        close_button = QPushButton("Close")
-        close_button.clicked.connect(self.accept)
-        layout.addWidget(close_button)
 
 def main():
     app = QApplication(sys.argv)
